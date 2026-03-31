@@ -7,15 +7,19 @@
     <h1 class="title">E-Mail & Volltext Parsing</h1>
 </div>
 
-<div>
+<div class="content">
     <div class="info-box"><strong>Intelligentes Parsing: </strong> Der Parser versteht natürliche Sprache aus E-Mails! Einfach E-Mail oder Text mit Termininformationen einfügen.</div>
 
     <form action="/parse_smart" method="post" id="parseForm">
         <label for="text">E-Mail oder Text einfügen:</label>
         <textarea name="text" id="text" placeholder="Füge hier eine E-Mail oder einen Text mit Termininformationen ein ...
+   
         
-        Beispiel:
-        'Die Schulung beginnt am 15. April 2026 und endet am 17. April 2026. Die täglichen Unterrichtszeiten sind von 09:00 Uhr bis 16:30 Uhr. Ort: Seminarzentrum, Musterstadt Trainer: Max Mustermann'" required></textarea>
+Beispiel:
+Die Schulung beginnt am 15. April 2026 und endet am 17. April 2026.
+Die täglichen Unterrichtszeiten sind von 09:00 Uhr bis 16:30 Uhr.
+Ort: Seminarzentrum, Musterstadt
+Trainer: Max Mustermann" required></textarea>
         <button type="submit" id="submitBtn">Termine erkennen & ICS generieren</button>
     </form>
 </div>
