@@ -10,7 +10,7 @@
 <div class="content">
     <div class="info-box"><strong>Intelligentes Parsing: </strong> Der Parser versteht natürliche Sprache aus E-Mails! Einfach E-Mail oder Text mit Termininformationen einfügen.</div>
 
-    <form action="/parse_smart" method="post" id="parseForm">
+    <form action="/smart_parse" method="post" id="parseForm">
         <label for="text">E-Mail oder Text einfügen:</label>
         <textarea name="text" id="text" placeholder="Füge hier eine E-Mail oder einen Text mit Termininformationen ein ...
    
@@ -24,5 +24,5 @@ Trainer: Max Mustermann" required></textarea>
     </form>
 </div>
 
-
+<div id="results" class="results-box"></div>
 {% endblock %}

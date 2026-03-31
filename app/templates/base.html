@@ -8,9 +8,12 @@
 </head>
 <body>
     <header>
-        <nav class="navbar">
-            <ul class="menu">
-                <li>
+        <nav>
+            <ul class="navbar">
+                <li class="menu">
+                    <img src="{{url_for('static', filename='images/companylogo.png') }}" alt="Logo" class="companylogo">
+                </li>
+                <li class="menu-right">
                     <a href="{{ url_for('smart_page') }}" class="nav-link-item">Smart Volltext</a>
                 </li>
             </ul>
@@ -23,4 +26,5 @@
         <div class="copyright">&copy; 2026 CalGen</div>
     </footer>
 </body>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </html>
