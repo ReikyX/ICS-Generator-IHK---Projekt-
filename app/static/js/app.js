@@ -38,8 +38,13 @@ document.addEventListener("DOMContentLoaded", function(){
 
             div.innerHTML = `
                 <h3>Termin</h3>
+                <p><strong>Titel:</strong> ${event.title}</p>
                 <p><strong>Start:</strong> ${event.start_date}</p>
                 <p><strong>Ende:</strong> ${event.end_date}</p>
+                <p><strong>Start Zeit:</strong> ${event.start_time}</p>
+                <p><strong>Ende Zeit:</strong> ${event.end_time}</p>
+                <p><strong>Trainer:</strong> ${event.trainer}</p>
+                <p><strong>Ort:</strong> ${event.location}</p>
                 <p><strong>Text:</strong> ${event.raw}</p>
 
             `

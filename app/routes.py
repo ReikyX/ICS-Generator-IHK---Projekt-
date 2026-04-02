@@ -13,18 +13,14 @@ def smart_page():
 
 @app.route('/smart_parse', methods=['POST'])
 def parse_text():
-    data = request.get_json()
-    text = data.get('text', '')
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+
+
+    if not text:
+        return jsonify({"error": "Kein Text übermittelt."}), 400
 
     parser = SmartEventParser()
     events = parser.parse_smart_text(text)
-
-    result = [
-        {
-            'start_date': e['start_date'].strftime('%d.%m.%Y'),
-            'end_date': e['end_date'].strftime('%d.%m.%Y'),
-            'raw': e['raw'],
-        }
-        for e in events
-    ]
-    return jsonify(result)
+    
+    return jsonify([e.to_dict() for e in events])
