@@ -163,7 +163,7 @@ class SmartEventParser:
         return m.group(1).strip().title() if m else ''
 
     def _extract_trainer(self, text):
-        m = re.search(r'(?:trainer|referent)\s*:\s*(.+?)(?:\.|$)', text.lower())
+        m = re.search(r'(?:trainer|referent)\s*:\s*(.+?)(?:\.$|$)', text.lower())
         return m.group(1).strip().title() if m else ''
 
     def _make_date(self, day: str, month_str: str, year_str: str | None) -> datetime | None:

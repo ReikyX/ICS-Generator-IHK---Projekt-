@@ -85,6 +85,56 @@ class TestExtractTimeRange(unittest.TestCase):
     def test_time_without_uhr_keyword(self):
         self.assertEqual(self.parser._extract_time_range("10:00 bis 12:00"), ("10:00", "12:00"))
 
+class TestExtractLocation(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_basic_location(self):
+        self.assertEqual(
+            self.parser._extract_location("Ort: Berlin. Weitere Infos folgen."), "Berlin")
+
+    def test_location_with_city_name(self):
+        self.assertEqual(
+            self.parser._extract_location("Schulung in München. Ort: Konferenzraum A."),
+            "Konferenzraum A")
+
+    def test_no_location_returns_empty(self):
+        self.assertEqual(self.parser._extract_location("Kein Ort angegeben"), "")
+
+    def test_location_titlecase(self):
+        self.assertEqual(self.parser._extract_location("ort: frankfurt am main."),
+                         "Frankfurt Am Main")
+
+class TestExtractTrainer(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_trainer_keyword(self):
+        self.assertEqual(
+            self.parser._extract_trainer("Trainer: Max Mustermann."),
+            "Max Mustermann")
+
+    def test_referent_keyword_without_title(self):
+        self.assertEqual(
+            self.parser._extract_trainer("Referent: Anna Schmidt"),
+            "Anna Schmidt")
+
+    def test_referent_with_title_bug(self):
+        self.assertEqual(
+            self.parser._extract_trainer("Referent: Dr. Anna Schmidt."),
+              "Dr. Anna Schmidt")
+
+    def test_no_trainer_returns_empty(self):
+        self.assertEqual(
+            self.parser._extract_trainer("Keine Angabe zum Referenten"), "")
+
+    def test_trainer_titlecase(self):
+        self.assertEqual(
+            self.parser._extract_trainer("trainer: thomas müller."),
+            "Thomas Müller")
+
 if __name__ == "__main__":
     unittest.main()
 
