@@ -66,6 +66,24 @@ class TestMonthToNumber(unittest.TestCase):
     def test_maerz_alternative_spelling(self):
         self.assertEqual(self.parser._month_to_number("maerz"), 3)
 
+class TestExtractTimeRange(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_basic_range(self):
+        self.assertEqual(
+            self.parser._extract_time_range("von 09:00 bis 17:00 Uhr"), ("09:00", "17:00"))
+
+    def test_range_with_dash(self):
+        self.assertEqual(
+            self.parser._extract_time_range("Uhrzeit: 08:30 - 16:00"), ("08:30", "16:00"))
+
+    def test_no_time_returns_none(self):
+        self.assertIsNone(self.parser._extract_time_range("Kein Datum hier!"))
+
+    def test_time_without_uhr_keyword(self):
+        self.assertEqual(self.parser._extract_time_range("10:00 bis 12:00"), ("10:00", "12:00"))
 
 if __name__ == "__main__":
     unittest.main()

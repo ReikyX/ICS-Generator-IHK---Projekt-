@@ -158,7 +158,7 @@ class SmartEventParser:
         return ''
 
     def _extract_location(self, text):
-        pattern = r'ort\s*:\s*(.+?)(?:\.|' + self._STOP_WORDS + r'|)'
+        pattern = r'ort\s*:\s*(.+?)(?:\.|' + self._STOP_WORDS + r'|$)'
         m = re.search(pattern, text.lower())
         return m.group(1).strip().title() if m else ''
 
