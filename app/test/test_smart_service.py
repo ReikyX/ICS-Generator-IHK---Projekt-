@@ -5,7 +5,9 @@ from datetime import datetime
 from app.services.smart_service import SmartEventParser
 from app.model import parse_model
 
-import sys, types
+import sys
+import types
+
 
 class TestNormalize(unittest.TestCase):
 
@@ -33,6 +35,37 @@ class TestNormalize(unittest.TestCase):
 
     def test_only_whitespace(self):
         self.assertEqual(self.parser._normalize("      \n      "), "")
+
+
+class TestMonthToNumber(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_full_names(self):
+        cases = {
+            "januar": 1, "februar": 2, "märz": 3, "april": 4, "mai": 5, "juni": 6, "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
+        }
+        for name, expected in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(self.parser._month_to_number(name), expected)
+
+    def test_abbreviations(self):
+        self.assertEqual(self.parser._month_to_number("jan"), 1)
+        self.assertEqual(self.parser._month_to_number("feb"), 2)
+        self.assertEqual(self.parser._month_to_number("dez"), 12)
+
+    def test_uppercase_input(self):
+        self.assertEqual(self.parser._month_to_number("MÄRZ"), 3)
+        self.assertEqual(self.parser._month_to_number("APRIL"), 4)
+
+    def test_digit_string(self):
+        self.assertEqual(self.parser._month_to_number("7"), 7)
+        self.assertEqual(self.parser._month_to_number("8"), 8)
+
+    def test_maerz_alternative_spelling(self):
+        self.assertEqual(self.parser._month_to_number("maerz"), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
