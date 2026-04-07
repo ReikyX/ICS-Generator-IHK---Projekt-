@@ -76,8 +76,8 @@ class SmartEventParser:
             r'und endet am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
         )
         for match in re.finditer(pattern2, text.lower()):
-            start_day, start_month_str, start_year, end_day, end_month_str, end_year = match.groups()
-            
+            start_day,start_month_str,start_year, end_day, end_month_str, end_year = match.groups()
+
             start_date = datetime(
                 int(start_year) if start_year else self._current_year,
                 self._month_to_number(start_month_str),
@@ -86,7 +86,7 @@ class SmartEventParser:
                 int(end_year) if end_year else self._current_year, 
                 self._month_to_number(end_month_str), 
                 int(end_day))
-            
+
             if start_date and end_date:
                 events.append(ParsedEvent(
                     start_date = start_date,
@@ -115,8 +115,6 @@ class SmartEventParser:
                 ))
 
         return events
-        
-        pass
 
     def _extract_time_range(self, text) -> tuple[str, str] | None:
         pattern = (
@@ -141,14 +139,14 @@ class SmartEventParser:
                 event.location = location
             if trainer:
                 event.trainer = trainer
-    
+
     def _extract_title(self, text):
         pattern_label = r'(?:schulung|seminar|kurs|veranstaltung|betreff|titel)\s*:\s*(.+?)(?:\.|$)'
-        
+
         m = re.search(pattern_label, text.lower())
         if m:
-            return m.group(0).strip().title()
-        
+            return m.group(1).strip().title()
+
         pattern_befor = r'^(.+?)\s+(?:beginnt am|vom\s+\d)'
         m = re.search(pattern_befor, text.lower())
         if m:
@@ -160,33 +158,32 @@ class SmartEventParser:
         return ''
 
     def _extract_location(self, text):
-        pattern = r'ort\s*:\s*(.+?)(?:\.|' + self._STOP_WORDS + r'|&)'
+        pattern = r'ort\s*:\s*(.+?)(?:\.|' + self._STOP_WORDS + r'|)'
         m = re.search(pattern, text.lower())
         return m.group(1).strip().title() if m else ''
 
     def _extract_trainer(self, text):
         m = re.search(r'(?:trainer|referent)\s*:\s*(.+?)(?:\.|$)', text.lower())
         return m.group(1).strip().title() if m else ''
-    
+
     def _make_date(self, day: str, month_str: str, year_str: str | None) -> datetime | None:
         try:
             return datetime(
-                int(year_str) if year_str else self._current_year, self._month_to_number(month_str), int(day),
-            )
+                int(year_str) if year_str else self._current_year,
+                self._month_to_number(month_str), int(day))
         except ValueError:
             return None
-        
+
     def _month_to_number(self, month_name):
         month_name = month_name.lower().strip('.').strip()
 
         if month_name.isdigit():
             return int(month_name)
-        
+
         if month_name in self.MONTHS_DE:
             return self.MONTHS_DE[month_name]
-        
+
         return datetime.now().month
-    
+
 def parse_smart_text_to_event(text):
     pass
-
