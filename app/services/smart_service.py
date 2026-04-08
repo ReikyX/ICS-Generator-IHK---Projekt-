@@ -21,7 +21,7 @@ class SmartEventParser:
         'dezember': 12, 'dez': 12,
     }
 
-    _STOP_WORDS = r'trainer|referent|ort|uhrzeit|von|bis|beschreibung'
+    _STOP_WORDS = r'trainer|referent(?:in)?|ort|veranstaltungsort'
 
     def __init__(self) -> None:
         self._current_year = datetime.now().year
@@ -39,12 +39,16 @@ class SmartEventParser:
         # 1. Search by date range (multi-day)
         events.extend(self._extract_date_range(normalized))
 
-        # 2. Search by single date 
+        # 2. Search by multi dates
+        if not events:
+            events.extend(self._extract_multi_dates(normalized))
+
+        # 3. Search by single date 
         if not events:
             events.extend(self._extract_single_date(normalized))
 
-        # 3. Extract common information
-        self._extract_common_info(events, normalized)
+        # 4. Extract common information
+        self._extract_common_info(events, text)
 
         # 4. Apply common information to all events
 
@@ -52,48 +56,114 @@ class SmartEventParser:
 
     def _extract_date_range(self, text) -> list[ParsedEvent]:
 
-        # --- „vom DD. bis DD. Monat [Jahr]" ---
-        pattern1 = (
-            r'vom\s+(\d{1,2})\.\s*bis\s+'
+        events = []
+        # --- „start DD. Monat [Jahr] ende DD. Monat [Jahr]" ---
+        pattern_start_end = (
+            r'start\s+(?:wäre|ist)?\s*am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?\s*'
+            r'und\s+ende\s+(?:wäre|ist)?\s*am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
+        )
+        for match in re.finditer(pattern_start_end, text.lower()):
+            start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
+            try:
+                events.append(ParsedEvent(
+                    start_date=datetime(
+                        int(start_year_str) if start_year_str else self._current_year,
+                        self._month_to_number(start_month_str),
+                        int(start_day)),
+                    end_date=datetime(
+                        int(end_year_str) if end_year_str else self._current_year,
+                        self._month_to_number(end_month_str),
+                        int(end_day)),
+                    raw=text[match.start():match.end()],
+                ))
+            except ValueError:
+                pass
+
+        # --- Numerischer Bereich: DD.MM.YYYY - DD.MM.YYYY (auch mit –) ---
+        pattern_num_range = (
+            r'(\d{1,2})\.(\d{1,2})\.(\d{4})'
+            r'\s*[-–]\s*'
+            r'(\d{1,2})\.(\d{1,2})\.(\d{4})'
+        )
+        for match in re.finditer(pattern_num_range, text.lower()):
+            start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
+            try:
+                events.append(ParsedEvent(
+                    start_date=datetime(int(start_year_str), int(start_month_str), int(start_day)),
+                    end_date=datetime(int(end_year_str), int(end_month_str), int(end_day)),
+                    raw=text[match.start():match.end()],
+                ))
+            except ValueError:
+                pass
+
+        # --- „vom DD. bis/-– DD. Monat [Jahr]" ---
+        pattern_vom_bis = (
+            r'vom\s+(\d{1,2})\.\s*(?:bis|[-–])\s+'
             r'(\d{1,2})\.\s+'
             r'(' + self._month_re + r')'
             r'(?:\s+(\d{4}))?'
         )
-        events = []
-        for match in re.finditer(pattern1, text.lower()):
-            start_date, end_date, month_str, year_str=match.groups()
-            month= self._month_to_number(month_str)
+        for match in re.finditer(pattern_vom_bis, text.lower()):
+            start_day, end_day, month_str, year_str = match.groups()
+            month = self._month_to_number(month_str)
             year = int(year_str) if year_str else self._current_year
-            events.append(ParsedEvent(
-                start_date = datetime(year, month, int(start_date)),
-                end_date = datetime(year, month, int(end_date)),
-                raw = text[match.start():match.end()],
-            ))
+            try:
+                events.append(ParsedEvent(
+                    start_date=datetime(year, month, int(start_day)),
+                    end_date=datetime(year, month, int(end_day)),
+                    raw=text[match.start():match.end()],
+                ))
+            except ValueError:
+                pass
 
         # --- „beginnt am DD. Monat [Jahr] und endet am DD. Monat [Jahr]" ---
-        pattern2 = (
+        pattern_beginnt_endet = (
             r'beginnt am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?\s*'
             r'und endet am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
         )
-        for match in re.finditer(pattern2, text.lower()):
-            start_day,start_month_str,start_year, end_day, end_month_str, end_year = match.groups()
-
-            start_date = datetime(
-                int(start_year) if start_year else self._current_year,
-                self._month_to_number(start_month_str),
-                int(start_day))
-            end_date = datetime(
-                int(end_year) if end_year else self._current_year, 
-                self._month_to_number(end_month_str), 
-                int(end_day))
-
-            if start_date and end_date:
+        for match in re.finditer(pattern_beginnt_endet, text.lower()):
+            start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
+            try:
                 events.append(ParsedEvent(
-                    start_date = start_date,
-                    end_date = end_date,
-                    raw = text[match.start():match.end()],
+                    start_date=datetime(
+                        int(start_year_str) if start_year_str else self._current_year,
+                        self._month_to_number(start_month_str),
+                        int(start_day)),
+                    end_date=datetime(
+                        int(end_year_str) if end_year_str else self._current_year,
+                        self._month_to_number(end_month_str),
+                        int(end_day)),
+                    raw=text[match.start():match.end()],
                 ))
+            except ValueError:
+                pass
 
+        return events
+
+    def _extract_multi_dates(self, text) -> list[ParsedEvent]:
+        pattern = (
+            r'am\s+'
+            r'(\d{1,2}\.(?:\s*,\s*\d{1,2}\.)*\s*(?:,?\s*und\s+)?\d{1,2}\.)'
+            r'\s+(' + self._month_re + r')'
+            r'(?:\s+(\d{4}))?'
+        )
+        events: list[ParsedEvent] = []
+        for match in re.finditer(pattern, text.lower()):
+            days_raw, month_str, year_str = match.groups()
+            days  = [int(d) for d in re.findall(r'\d{1,2}', days_raw)]
+            if len(days) < 2:
+                continue
+            month = self._month_to_number(month_str)
+            year  = int(year_str) if year_str else self._current_year
+            for day in days:
+                try:
+                    date = datetime(year, month, day)
+                    events.append(ParsedEvent(
+                        start_date=date, end_date=date,
+                        raw=match.group(0),
+                    ))
+                except ValueError:
+                    pass
         return events
 
     def _extract_single_date(self, text) -> list[ParsedEvent]:
@@ -141,30 +211,46 @@ class SmartEventParser:
                 event.trainer = trainer
 
     def _extract_title(self, text):
-        pattern_label = r'(?:schulung|seminar|kurs|veranstaltung|betreff|titel)\s*:\s*(.+?)(?:\.|$)'
+        
+        for line in text.splitlines():
+            line = line.strip()
+            match = re.match(r'^(?:betreff|titel)\s*:\s*(.+)$', line, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
 
-        m = re.search(pattern_label, text.lower())
-        if m:
-            return m.group(1).strip().title()
-
-        pattern_befor = r'^(.+?)\s+(?:beginnt am|vom\s+\d)'
-        m = re.search(pattern_befor, text.lower())
-        if m:
-            candidate = m.group(1).strip()
-
-            if 4 < len(candidate) < 60:
-                return candidate.title()
+        pattern = r'^(.*?)(?:beginnt am|vom\s+\d{1,2}|am \d{1,2})'
+        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+        if match:
+            candidate = match.group(1).strip()
+            if 3 < len(candidate) < 60:
+                return candidate
 
         return ''
 
     def _extract_location(self, text):
-        pattern = r'ort\s*:\s*(.+?)(?:\.|' + self._STOP_WORDS + r'|$)'
-        m = re.search(pattern, text.lower())
-        return m.group(1).strip().title() if m else ''
+
+        patterns = [
+            r'\b(?:in|findet in)\s+([a-zäöüß\- ]+?)(?:\.|,|$|\s)',
+            r'\b(?:ort|location)\s*(?:ist|:)?\s*([a-zäöüß\- ]+?)(?:\.|,|$|\s)',
+            r'\b(?:Ort)\s+([a-zäöüß\- ]+?)(?:\.|,|$|\s)'
+        ]
+        for pat in patterns:
+            match = re.search(pat, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ''
 
     def _extract_trainer(self, text):
-        m = re.search(r'(?:trainer|referent)\s*:\s*(.+?)(?:\.$|$)', text.lower())
-        return m.group(1).strip().title() if m else ''
+        patterns = [
+            r'(?:trainer|referent(?:in)?)\s*(?:ist|wird|:)?\s*(.+?)(?:\s+vorgesehen|\.|$)',
+            r'als\s+(?:trainer|referent(?:in)?)\s+ist\s+(.+?)(?:\s+vorgesehen|\.|$)',
+            r'leiter\s*(?:ist|:)?\s*(.+?)(?:\.|$)'
+        ]
+        for pat in patterns:
+            match = re.search(pat, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ''
 
     def _make_date(self, day: str, month_str: str, year_str: str | None) -> datetime | None:
         try:
@@ -184,6 +270,3 @@ class SmartEventParser:
             return self.MONTHS_DE[month_name]
 
         return datetime.now().month
-
-def parse_smart_text_to_event(text):
-    pass

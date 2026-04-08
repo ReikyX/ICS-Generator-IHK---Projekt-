@@ -1,13 +1,6 @@
 import unittest
-
-from unittest.mock import patch, MagicMock
 from datetime import datetime
 from app.services.smart_service import SmartEventParser
-from app.model import parse_model
-
-import sys
-import types
-
 
 class TestNormalize(unittest.TestCase):
 
@@ -35,7 +28,6 @@ class TestNormalize(unittest.TestCase):
 
     def test_only_whitespace(self):
         self.assertEqual(self.parser._normalize("      \n      "), "")
-
 
 class TestMonthToNumber(unittest.TestCase):
 
@@ -137,9 +129,3 @@ class TestExtractTrainer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-# Die Schulung beginnt am 15. April 2026 und endet am 17. April 2026.
-# Die täglichen Unterrichtszeiten sind von 09:00 Uhr bis 16:30 Uhr.
-# Ort: Seminarzentrum, Musterstadt
-# Trainer: Max Mustermann
