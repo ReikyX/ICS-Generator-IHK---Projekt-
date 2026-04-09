@@ -66,16 +66,19 @@ nur kurz zur Info: wir haben am 2. August noch einen kleinen Kurs eingeplant, ak
 Mehr Details habe ich gerade leider nicht, reiche ich aber nach.
 
 VG"""
-    case7_uppercase_and_umlauts = """Betreff: Cloud Seminar
+    case7_uppercase_and_umlauts = """Betreff: WICHTIGES Update zum Cloud-Seminar
 
 Hallo zusammen,
 
-wir haben jetzt endlich einen Termin für das Cloud Seminar gefunden.
-Das Ganze findet am 15. September 2026 statt.
+wir haben nun ENDLICH einen Termin für das Cloud-Seminar gefunden:
+Es findet am 15. September 2026 in München statt.
 
-Location ist Hamburg und als Trainerin ist Anna Schmidt eingeplant.
+Unsere Trainerin ist FRÄULEIN Anna Schmitt, die Expertise in Cloud-Computing, KI-Tools und Ökosysteme mitbringt.
 
-Agenda schicke ich separat rum."""
+Agenda und weitere Infos schicke ich separat rum. Bitte meldet Euch frühzeitig zurück.
+
+Vielen Dank und bis bald,
+Euer Team"""
     case8_invalid_date_should_fail = """Betreff: Termin (unsicher)
 
 Hi,
@@ -214,7 +217,7 @@ Mehr habe ich aktuell leider auch nicht."""
                 events = self.parser.parse_smart_text(text)
                 self.assertEqual(len(events), expected_count)
 
-class TestSingleDate1(unittest.TestCase):
+class TestSingleDateCase1(unittest.TestCase):
     def setUp(self):
         self.parser = SmartEventParser()
 
@@ -234,13 +237,13 @@ Viele Grüße"""
         events = self.parser.parse_smart_text(case1_single_date)
         self.assertEqual(events[0].title, "KI-Schulung im März")
         self.assertEqual(events[0].start_date, datetime(2026, 3, 5))
+        self.assertEqual(events[0].end_date, datetime(2026, 3, 5))
         self.assertEqual(events[0].start_time, "09:00")
         self.assertEqual(events[0].end_time, "17:00")
         self.assertEqual(events[0].location, "München")
         self.assertEqual(events[0].trainer, "Jörg Müller")
 
-
-class TestSingleDate2(unittest.TestCase):
+class TestSingleDateCase2(unittest.TestCase):
     def setUp(self):
         self.parser = SmartEventParser()
 
@@ -257,12 +260,13 @@ Wenn jemand Themenwünsche hat, gerne melden 🙂"""
         events = self.parser.parse_smart_text(case2_with_location)
         self.assertEqual(events[0].title, "Workshop Planung April")
         self.assertEqual(events[0].start_date, datetime(2026, 4, 12))
+        self.assertEqual(events[0].end_date, datetime(2026, 4, 12))
         self.assertEqual(events[0].start_time, "10:00")
         self.assertEqual(events[0].end_time, "15:00")
-        self.assertEqual(events[0].location, "Frankfurt")
         self.assertEqual(events[0].trainer, "")
+        self.assertEqual(events[0].location, "Frankfurt")
 
-class MultipleDates(unittest.TestCase):
+class MultipleDatesCase3(unittest.TestCase):
 
     def setUp(self):
         self.parser = SmartEventParser()
@@ -287,7 +291,121 @@ Danke!"""
         self.assertEqual(events[1].start_date, datetime(2026, 5, 12))
         self.assertEqual(events[1].start_time, "10:00")
         self.assertEqual(events[0].end_time, "15:00")
-        self.assertEqual(events[0].location, "")
         self.assertEqual(events[0].trainer, "Max Mustermann")
+        self.assertEqual(events[0].location, "")
+
+class TestDateRangeCase4(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_date_range(self):
+        case4_date_range_with_time = """Betreff: Data Science Kurs (mehrtägig)
+
+Hallo zusammen,
+
+wir planen aktuell einen Data Science Kurs, der sich über mehrere Tage erstrecken soll.
+Start wäre am 1. Juni 2026 und Ende am 3. Juni.
+
+Täglich würden wir so gegen 09:30 anfangen und bis etwa 16:30 machen.
+Ort ist Berlin.
+
+Weitere Details folgen noch."""
+
+        events = self.parser.parse_smart_text(case4_date_range_with_time)
+        self.assertEqual(
+            events[0].title, "Data Science Kurs (mehrtägig)")
+        self.assertEqual(events[0].start_date, datetime(2026, 6, 1))
+        self.assertEqual(events[0].end_date, datetime(2026, 6, 3))
+        self.assertEqual(events[0].start_time, "09:30")
+        self.assertEqual(events[0].end_time, "16:30")
+        self.assertEqual(events[0].trainer, "")
+        self.assertEqual(events[0].location, "Berlin")
+
+class TestDateRangeCase5(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_date_range_natural_language(self):
+        case5_text_with_date_range_natural_language = """Betreff: DevOps Training Infos
+
+Hi zusammen,
+
+anbei schon mal die Infos zum DevOps Training:
+Das Training beginnt am 7. Juli und endet am 9. Juli, also insgesamt drei Tage.
+
+Es findet in Berlin statt und richtet sich eher an Fortgeschrittene, wird also recht intensiv.
+
+Wenn ihr teilnehmen wollt, gebt bitte kurz Bescheid."""
+
+        events = self.parser.parse_smart_text(case5_text_with_date_range_natural_language)
+        self.assertEqual(
+            events[0].title, "DevOps Training Infos")
+        self.assertEqual(events[0].start_date, datetime(2026, 7, 7))
+        self.assertEqual(events[0].end_date, datetime(2026, 7, 9))
+        self.assertEqual(events[0].start_time, "")
+        self.assertEqual(events[0].end_time, "")
+        self.assertEqual(events[0].trainer, "")
+        self.assertEqual(events[0].location, "Berlin")
+
+class SingleDateCase6(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_single_date_short(self):
+        case6_single_date_short_text = """Betreff: kurzer Termin im August
+
+Hallo,
+
+nur kurz zur Info: wir haben am 2. August noch einen kleinen Kurs eingeplant, aktuell von 08:30 bis 12:30.
+
+Mehr Details habe ich gerade leider nicht, reiche ich aber nach.
+
+VG"""
+
+        events = self.parser.parse_smart_text(
+            case6_single_date_short_text)
+        self.assertEqual(
+            events[0].title, "kurzer Termin im August")
+        self.assertEqual(events[0].start_date, datetime(2026, 8, 2))
+        self.assertEqual(events[0].end_date, datetime(2026, 8, 2))
+        self.assertEqual(events[0].start_time, "08:30")
+        self.assertEqual(events[0].end_time, "12:30")
+        self.assertEqual(events[0].trainer, "")
+        self.assertEqual(events[0].location, "")
+
+class SingleDateCase7(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_single_date_uppercase_and_umlauts(self):
+        case7_uppercase_and_umlauts = """Betreff: WICHTIGES Update zum Cloud-Seminar
+
+Hallo zusammen,
+
+wir haben nun ENDLICH einen Termin für das Cloud-Seminar gefunden:
+Es findet am 15. September 2026 in München statt.
+
+Unsere Trainerin ist FRÄULEIN Anna Schmitt, die Expertise in Cloud-Computing, KI-Tools und Ökosysteme mitbringt.
+
+Agenda und weitere Infos schicke ich separat rum. Bitte meldet Euch frühzeitig zurück.
+
+Vielen Dank und bis bald,
+Euer Team"""
+
+        events = self.parser.parse_smart_text(
+            case7_uppercase_and_umlauts)
+        self.assertEqual(
+            events[0].title, "WICHTIGES Update zum Cloud-Seminar")
+        self.assertEqual(events[0].start_date, datetime(2026, 9, 15))
+        self.assertEqual(events[0].end_date, datetime(2026, 9, 15))
+        self.assertEqual(events[0].start_time, "")
+        self.assertEqual(events[0].end_time, "")
+        self.assertEqual(events[0].trainer, "Anna Schmitt")
+        self.assertEqual(events[0].location, "München")
+
 if __name__ == "__main__":
     unittest.main()

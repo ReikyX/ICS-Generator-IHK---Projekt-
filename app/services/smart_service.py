@@ -187,12 +187,25 @@ class SmartEventParser:
         return events
 
     def _extract_time_range(self, text) -> tuple[str, str] | None:
-        pattern = (
+        pattern_standard = (
             r'(?:von\s+)?(\d{1,2}:\d{2})\s*(?:uhr)?\s*'
             r'(?:bis|-)\s*(\d{1,2}:\d{2})\s*(?:uhr)?'
         )
-        m =re.search(pattern, text.lower())
-        return (m.group(1), m.group(2)) if m else None
+        match =re.search(pattern_standard, text.lower())
+        if match:
+            return(match.group(1), match.group(2))
+
+        pattern_natural = (
+            r'(?:gegen\s+)?(\d{1,2}:\d{2})\s*'
+            r'(?:anfangen|starten|beginnen|beginn)?\s*(?:und)?\s*'
+            r'(?:bis\s+(?:etwa\s+)?)'
+            r'(\d{1,2}:\d{2})'
+        )
+        match = re.search(pattern_natural, text.lower())
+        if match:
+            return (match.group(1), match.group(2))
+
+        return None
 
     def _extract_common_info(self, events: list[ParsedEvent], text):
         title = self._extract_title(text)
@@ -255,15 +268,38 @@ class SmartEventParser:
         return ''
 
     def _extract_trainer(self, text):
+        text = self._normalize(text)
         patterns = [
-            r'(?:trainer|referent(?:in)?)\s*(?:ist|wird|:)?\s*(.+?)(?:\s+vorgesehen|\.|$)',
-            r'als\s+(?:trainer|referent(?:in)?)\s+ist\s+(.+?)(?:\s+vorgesehen|\.|$)',
-            r'leiter\s*(?:ist|:)?\s*(.+?)(?:\.|$)'
+            r'(?:trainer(?:in)?|referent(?:in)?)\s*(?:ist|wird|:)\s*'
+            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
+
+            r'als\s+(?:trainer(?:in)?|referent(?:in)?)\s+ist\s+'
+            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
+
+            r'(?:von|leiter(?:in)?)\s*(?:ist|:)?\s*'
+            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)'
+            r'(?:\s+geleitet)'
         ]
         for pat in patterns:
             match = re.search(pat, text, re.IGNORECASE)
             if match:
-                return match.group(1).strip()
+                title_prefix = (match.group(1) or '').strip()
+                name_part = (match.group(2) or '').strip()
+
+                name_part = re.split(r'\s+(?:vorgesehen|geplant|wird|die|der|das|ist|sein)\b', name_part, flags=re.IGNORECASE)[0].strip()
+                allowed_titles = {"dr.", "prof.", "herr", "frau"}
+                title_clean = title_prefix.lower().strip()
+
+                if title_clean in allowed_titles:
+                    full_name = f"{title_clean.title()} {name_part}".strip()
+                else:
+                    full_name = name_part
+
+                if full_name:
+                    return full_name
         return ''
 
     def _make_date(self, day: str, month_str: str, year_str: str | None) -> datetime | None:
