@@ -228,16 +228,30 @@ class SmartEventParser:
         return ''
 
     def _extract_location(self, text):
+        text = self._normalize(text)
+        text_lower = text.lower()
+
+        # special case
+        if "remote" in text_lower:
+            return "remote"
 
         patterns = [
-            r'\b(?:in|findet in)\s+([a-zäöüß\- ]+?)(?:\.|,|$|\s)',
-            r'\b(?:ort|location)\s*(?:ist|:)?\s*([a-zäöüß\- ]+?)(?:\.|,|$|\s)',
-            r'\b(?:Ort)\s+([a-zäöüß\- ]+?)(?:\.|,|$|\s)'
+            # spezifisch zuerst
+            r'(?i:ort|location)\s*(?:ist|:)?\s*(?:aktuell\s+|derzeit\s+|momentan\s+|noch\s+)?([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:[.,]|$|\s)',
+
+            r'(?i:findet\s+in)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|geplant|sein)|[.,]|$)',
+
+            r'(?i:\bin)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|stattfinden|geplant|sein|wird)|[.,]|$)',
         ]
         for pat in patterns:
-            match = re.search(pat, text, re.IGNORECASE)
+            match = re.search(pat, text)
             if match:
-                return match.group(1).strip()
+                location = match.group(1).strip()
+
+                location = re.sub(r'\b(statt|stattfinden|geplant|sein|wird)\b.*', '', location, flags=re.IGNORECASE).strip()
+
+                if len(location.split()) <= 4:
+                    return location
         return ''
 
     def _extract_trainer(self, text):
