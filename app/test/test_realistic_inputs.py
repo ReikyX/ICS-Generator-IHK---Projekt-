@@ -186,6 +186,15 @@ Hallo,
 wegen der Sache von letzter Woche: das Training soll wohl im Dezember stattfinden, vermutlich in Berlin.
 
 Mehr habe ich aktuell leider auch nicht."""
+    case21_time_format_and_date_range = """Betreff: Workshop
+
+Hi,
+
+wir wollen einen Workshop zum Thema Kommunikation machen, wahrscheinlich von 10 Uhr bis 15 Uhr.
+Ort wäre Berlin und als Trainerin ist Frau Keller vorgesehen. Das ganze soll am 7. Juni sein und endet am 8 Juni
+
+Den genauen Termin liefere ich noch nach.
+"""
     def setUp(self):
         self.parser = SmartEventParser()
 
@@ -266,7 +275,7 @@ Wenn jemand Themenwünsche hat, gerne melden 🙂"""
         self.assertEqual(events[0].trainer, "")
         self.assertEqual(events[0].location, "Frankfurt")
 
-class MultipleDatesCase3(unittest.TestCase):
+class TestMultipleDatesCase3(unittest.TestCase):
 
     def setUp(self):
         self.parser = SmartEventParser()
@@ -349,7 +358,7 @@ Wenn ihr teilnehmen wollt, gebt bitte kurz Bescheid."""
         self.assertEqual(events[0].trainer, "")
         self.assertEqual(events[0].location, "Berlin")
 
-class SingleDateCase6(unittest.TestCase):
+class TestSingleDateCase6(unittest.TestCase):
 
     def setUp(self):
         self.parser = SmartEventParser()
@@ -376,7 +385,7 @@ VG"""
         self.assertEqual(events[0].trainer, "")
         self.assertEqual(events[0].location, "")
 
-class SingleDateCase7(unittest.TestCase):
+class TestSingleDateCase7(unittest.TestCase):
 
     def setUp(self):
         self.parser = SmartEventParser()
@@ -406,6 +415,163 @@ Euer Team"""
         self.assertEqual(events[0].end_time, "")
         self.assertEqual(events[0].trainer, "Anna Schmitt")
         self.assertEqual(events[0].location, "München")
+
+class TestInvalidDateCase8(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_invalid_date(self):
+        case8_invalid_date_should_fail = """Betreff: Termin (unsicher)
+
+Hi,
+
+ich habe hier noch eine etwas komische Angabe bekommen: angeblich soll ein Event am 32. Januar stattfinden, was ja offensichtlich nicht stimmen kann.
+
+Ort wäre Köln gewesen, aber ich kläre das nochmal.
+
+Ich melde mich, sobald ich korrekte Infos habe."""
+
+        events = self.parser.parse_smart_text(
+            case8_invalid_date_should_fail)
+        self.assertEqual(len(events), 0)
+
+class TestMultipleEventsCase9(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_multiple_events(self):
+        case9_multiple_events_in_text = """Betreff: mehrere Workshops im Oktober
+
+Hallo,
+
+im Oktober stehen gleich zwei Veranstaltungen an.
+Zum einen ein Scrum Kurs am 3. Oktober, geplant von 09:00 bis 13:00 Uhr.
+
+Zusätzlich gibt es noch einen Kanban Workshop am 5. Oktober, der eher ganztägig ist, aktuell 10:00 bis 16:00.
+
+Beides wird remote stattfinden.
+
+Gebt bitte Bescheid, wer woran teilnehmen möchte."""
+
+        events = self.parser.parse_smart_text(
+            case9_multiple_events_in_text)
+        self.assertEqual(events[0].title, "mehrere Workshops im Oktober")
+        self.assertEqual(events[0].start_date, datetime(2026, 10, 3))
+        self.assertEqual(events[0].end_date, datetime(2026, 10, 3))
+        self.assertEqual(events[0].start_time, "09:00")
+        self.assertEqual(events[0].end_time, "13:00")
+        self.assertEqual(events[0].trainer, "")
+        self.assertEqual(events[0].location, "remote")
+        self.assertEqual(events[1].title, "mehrere Workshops im Oktober")
+        self.assertEqual(events[1].start_date, datetime(2026, 10, 5))
+        self.assertEqual(events[1].end_date, datetime(2026, 10, 5))
+        self.assertEqual(events[1].start_time, "10:00")
+        self.assertEqual(events[1].end_time, "16:00")
+        self.assertEqual(events[1].trainer, "")
+        self.assertEqual(events[1].location, "remote")
+
+
+class TestDateRangeWithoutLocation10(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_date_range_without_location(self):
+        case10_date_range_with_missing_location = """Betreff: Führungskräfte Training
+
+Hallo Team,
+
+bitte merkt euch schon mal das Führungskräfte-Training vor.
+Das Ganze ist aktuell vom 20. bis 22. November 2026 geplant.
+
+Uhrzeiten werden wahrscheinlich jeweils so gegen 9:00 bis 17:00 liegen.
+Trainer wird Dr. Weber sein.
+
+Beim Ort sind wir noch nicht final, das reiche ich nach.
+
+Danke euch!"""
+
+        events = self.parser.parse_smart_text(
+            case10_date_range_with_missing_location)
+        self.assertEqual(events[0].title, "Führungskräfte Training")
+        self.assertEqual(events[0].start_date, datetime(2026, 11, 20))
+        self.assertEqual(events[0].end_date, datetime(2026, 11, 22))
+        self.assertEqual(events[0].start_time, "09:00")
+        self.assertEqual(events[0].end_time, "17:00")
+        self.assertEqual(events[0].trainer, "Dr. Weber")
+        self.assertEqual(events[0].location, "")
+
+
+class TestNoReference11(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_no_reference(self):
+        case11_no_reference = """Hallo,
+
+wir haben nächste Woche eine Schulung geplant, genauer gesagt am 8. April 2026 von 09:00 bis 16:00 Uhr.
+Das Ganze findet in Stuttgart statt, Trainer ist Michael Braun."""
+
+        events = self.parser.parse_smart_text(
+            case11_no_reference)
+        self.assertEqual(events[0].title, "")
+        self.assertEqual(events[0].start_date, datetime(2026, 4, 8))
+        self.assertEqual(events[0].end_date, datetime(2026, 4, 8))
+        self.assertEqual(events[0].start_time, "09:00")
+        self.assertEqual(events[0].end_time, "16:00")
+        self.assertEqual(events[0].trainer, "Michael Braun")
+        self.assertEqual(events[0].location, "Stuttgart")
+
+
+class TestNoDate12(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_no_date(self):
+        case12_no_date = """Betreff: Workshop ohne Datum
+
+Hi,
+
+wir wollen einen Workshop zum Thema Kommunikation machen, wahrscheinlich von 10:00 bis 15:00 Uhr.
+Ort wäre Berlin und als Trainerin ist Frau Keller vorgesehen.
+
+Den genauen Termin liefere ich noch nach."""
+
+        events = self.parser.parse_smart_text(
+            case12_no_date)
+        self.assertEqual(len(events), 0)
+
+
+class TestNoReference21(unittest.TestCase):
+
+    def setUp(self):
+        self.parser = SmartEventParser()
+
+    def test_time_format_and_date_range(self):
+        case21_time_format_and_date_range = """Betreff: Workshop
+
+Hi,
+
+wir wollen einen Workshop zum Thema Kommunikation machen, wahrscheinlich von 10 Uhr bis 15 Uhr.
+Ort wäre Berlin und als Trainerin ist Frau Keller vorgesehen. Das ganze soll am 7. Juni sein und endet am 8 Juni
+
+Den genauen Termin liefere ich noch nach.
+"""
+
+        events = self.parser.parse_smart_text(
+            case21_time_format_and_date_range)
+        self.assertEqual(events[0].title, "Workshop")
+        self.assertEqual(events[0].start_date, datetime(2026, 6, 7))
+        self.assertEqual(events[0].end_date, datetime(2026, 6, 8))
+        self.assertEqual(events[0].start_time, "10:00")
+        self.assertEqual(events[0].end_time, "15:00")
+        self.assertEqual(events[0].trainer, "Frau Keller")
+        self.assertEqual(events[0].location, "Berlin")
+
 
 if __name__ == "__main__":
     unittest.main()

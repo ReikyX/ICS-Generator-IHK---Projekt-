@@ -21,15 +21,36 @@ class SmartEventParser:
         'dezember': 12, 'dez': 12,
     }
 
-    _STOP_WORDS = r'trainer|referent(?:in)?|ort|veranstaltungsort'
+    _STOP_WORDS = r'trainer(?:in)|referent(?:in)?|ort|veranstaltungsort'
 
     def __init__(self) -> None:
         self._current_year = datetime.now().year
         self._month_re = '|'.join(self.MONTHS_DE.keys())
 
+        self.start_time = None
+        self.end_time = None
+        self.location = ''
+        self.trainer = ''
+        self.span = None
+
     def _normalize(self, text):
         lines = text.splitlines()
         return " ".join(line.strip() for line in lines if line.strip())
+
+    def _normalize_time(self, h, m):
+        h = int(h)
+        m = int(m) if m else 0
+        return f"{h:02d}:{m:02d}"
+
+    def _deduplicate_events(self, events):
+        unique = []
+        for e in events:
+            if not any(
+                e.start_date == u.start_date and e.end_date == u.end_date
+                for u in unique
+            ):
+                unique.append(e)
+        return unique
 
     def parse_smart_text(self, text) -> list[ParsedEvent]:
         """Main method for parsing a natural language"""
@@ -43,29 +64,35 @@ class SmartEventParser:
         if not events:
             events.extend(self._extract_multi_dates(normalized))
 
-        # 3. Search by single date 
+        # 3. Search by single date
         if not events:
             events.extend(self._extract_single_date(normalized))
 
         # 4. Extract common information
-        self._extract_common_info(events, text)
+        #self._extract_common_info(events, text)
+        title = self._extract_title(text)
+        for event in events:
+            event.title = title
+        events.sort(key=lambda e: e.span[0])
+        self._assign_event_context(events, normalized)
 
         # 4. Apply common information to all events
 
+
+        events = self._deduplicate_events(events)
         return events
 
     def _extract_date_range(self, text) -> list[ParsedEvent]:
-
         events = []
         # --- „start DD. Monat [Jahr] ende DD. Monat [Jahr]" ---
         pattern_start_end = (
             r'start\s+(?:wäre|ist)?\s*am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?\s*'
             r'und\s+ende\s+(?:wäre|ist)?\s*am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
         )
-        for match in re.finditer(pattern_start_end, text.lower()):
+        for match in re.finditer(pattern_start_end, text, re.IGNORECASE):
             start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
             try:
-                events.append(ParsedEvent(
+                event = ParsedEvent(
                     start_date=datetime(
                         int(start_year_str) if start_year_str else self._current_year,
                         self._month_to_number(start_month_str),
@@ -75,7 +102,9 @@ class SmartEventParser:
                         self._month_to_number(end_month_str),
                         int(end_day)),
                     raw=text[match.start():match.end()],
-                ))
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
             except ValueError:
                 pass
 
@@ -85,14 +114,16 @@ class SmartEventParser:
             r'\s*[-–]\s*'
             r'(\d{1,2})\.(\d{1,2})\.(\d{4})'
         )
-        for match in re.finditer(pattern_num_range, text.lower()):
+        for match in re.finditer(pattern_num_range, text, re.IGNORECASE):
             start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
             try:
-                events.append(ParsedEvent(
+                event = ParsedEvent(
                     start_date=datetime(int(start_year_str), int(start_month_str), int(start_day)),
                     end_date=datetime(int(end_year_str), int(end_month_str), int(end_day)),
                     raw=text[match.start():match.end()],
-                ))
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
             except ValueError:
                 pass
 
@@ -103,28 +134,31 @@ class SmartEventParser:
             r'(' + self._month_re + r')'
             r'(?:\s+(\d{4}))?'
         )
-        for match in re.finditer(pattern_vom_bis, text.lower()):
+        for match in re.finditer(pattern_vom_bis, text, re.IGNORECASE):
             start_day, end_day, month_str, year_str = match.groups()
             month = self._month_to_number(month_str)
             year = int(year_str) if year_str else self._current_year
             try:
-                events.append(ParsedEvent(
+                event = ParsedEvent(
                     start_date=datetime(year, month, int(start_day)),
                     end_date=datetime(year, month, int(end_day)),
                     raw=text[match.start():match.end()],
-                ))
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
             except ValueError:
                 pass
 
         # --- „beginnt am DD. Monat [Jahr] und endet am DD. Monat [Jahr]" ---
         pattern_beginnt_endet = (
-            r'beginnt am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?\s*'
-            r'und endet am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
+            r'beginnt\s+am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?\s*'
+            r'.*?'
+            r'und\s+endet\s+am\s+(\d{1,2})\.?\s*(' + self._month_re + r')(?:\s+(\d{4}))?'
         )
-        for match in re.finditer(pattern_beginnt_endet, text.lower()):
+        for match in re.finditer(pattern_beginnt_endet, text, re.IGNORECASE):
             start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
             try:
-                events.append(ParsedEvent(
+                event = ParsedEvent(
                     start_date=datetime(
                         int(start_year_str) if start_year_str else self._current_year,
                         self._month_to_number(start_month_str),
@@ -134,7 +168,33 @@ class SmartEventParser:
                         self._month_to_number(end_month_str),
                         int(end_day)),
                     raw=text[match.start():match.end()],
-                ))
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
+            except ValueError:
+                pass
+
+        pattern_mixed_range = (
+            r'am\s+(\d{1,2})\.?\s*('+ self._month_re + r')(?:\s+(\d{4}))?'
+            r'.*?'
+            r'und\s+endet\s+am\s+(\d{1,2})\.?\s*('+ self._month_re + r')(?:\s+(\d{4}))?'
+        )
+        for match in re.finditer(pattern_mixed_range, text, re.IGNORECASE):
+            start_day, start_month_str, start_year_str, end_day, end_month_str, end_year_str = match.groups()
+            try:
+                event = ParsedEvent(
+                    start_date=datetime(
+                        int(start_year_str) if start_year_str else self._current_year,
+                        self._month_to_number(start_month_str),
+                        int(start_day)),
+                    end_date=datetime(
+                        int(end_year_str) if end_year_str else self._current_year,
+                        self._month_to_number(end_month_str),
+                        int(end_day)),
+                    raw=text[match.start():match.end()],
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
             except ValueError:
                 pass
 
@@ -148,7 +208,7 @@ class SmartEventParser:
             r'(?:\s+(\d{4}))?'
         )
         events: list[ParsedEvent] = []
-        for match in re.finditer(pattern, text.lower()):
+        for match in re.finditer(pattern, text, re.IGNORECASE):
             days_raw, month_str, year_str = match.groups()
             days  = [int(d) for d in re.findall(r'\d{1,2}', days_raw)]
             if len(days) < 2:
@@ -158,73 +218,115 @@ class SmartEventParser:
             for day in days:
                 try:
                     date = datetime(year, month, day)
-                    events.append(ParsedEvent(
+                    event = ParsedEvent(
                         start_date=date, end_date=date,
                         raw=match.group(0),
-                    ))
+                    )
+                    event.span = (match.start(), match.end())
+                    events.append(event)
                 except ValueError:
                     pass
         return events
 
     def _extract_single_date(self, text) -> list[ParsedEvent]:
         pattern = (
-            r'(?:am\s+)?(\d{1,2})\.\s+'
+            r'(?:am\s+)?(\d{1,2})\.?\s*'
             r'(' + self._month_re + r')'
             r'(?:\s+(\d{4}))?'
         )
         events = []
 
-        for match in re.finditer(pattern, text.lower()):
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            if any(e.span[0] <= match.start() <= e.span[1] for e in events):
+                continue
             day, month_str, year_str = match.groups()
             date = self._make_date(day, month_str, year_str)
             if date:
-                events.append(ParsedEvent(
+                event = ParsedEvent(
                     start_date = date,
                     end_date = date,
                     raw = text[match.start():match.end()],
-                ))
+                )
+                event.span = (match.start(), match.end())
+
+                events.append(event)
 
         return events
 
     def _extract_time_range(self, text) -> tuple[str, str] | None:
         pattern_standard = (
-            r'(?:von\s+)?(\d{1,2}:\d{2})\s*(?:uhr)?\s*'
-            r'(?:bis|-)\s*(\d{1,2}:\d{2})\s*(?:uhr)?'
+            r'(?:von\s+)?'
+            r'(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?\s*'
+            r'(?:bis|[-–])\s*'
+            r'(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?'
         )
         match =re.search(pattern_standard, text.lower())
         if match:
-            return(match.group(1), match.group(2))
+            start_h, start_m, end_h, end_m = match.groups()
+            start_time = self._normalize_time(start_h, start_m)
+            end_time = self._normalize_time(end_h, end_m)
+            return start_time, end_time
 
         pattern_natural = (
-            r'(?:gegen\s+)?(\d{1,2}:\d{2})\s*'
-            r'(?:anfangen|starten|beginnen|beginn)?\s*(?:und)?\s*'
+            r'(?:gegen\s+)?'
+            r'(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?\s*'
+            r'(?:anfang(?:en)|start(?:en|et)|beginn(?:t|en)?)?\s*'
+            r'(?:und\s+)?'
             r'(?:bis\s+(?:etwa\s+)?)'
-            r'(\d{1,2}:\d{2})'
+            r'(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?'
         )
-        match = re.search(pattern_natural, text.lower())
+        match = re.search(pattern_natural, text, re.IGNORECASE)
         if match:
-            return (match.group(1), match.group(2))
+            start_h, start_m, end_h, end_m = match.groups()
+            start_time = self._normalize_time(start_h, start_m)
+            end_time = self._normalize_time(end_h, end_m)
+            return start_time, end_time
 
         return None
 
-    def _extract_common_info(self, events: list[ParsedEvent], text):
-        title = self._extract_title(text)
-        time_range = self._extract_time_range(text)
-        location = self._extract_location(text)
-        trainer = self._extract_trainer(text)
+    # def _extract_common_info(self, events: list[ParsedEvent], text):
+    #     title = self._extract_title(text)
+    #     time_range = self._extract_time_range(text)
+    #     location = self._extract_location(text)
+    #     trainer = self._extract_trainer(text)
 
-        for event in events:
-            if title:
-                event.title = title
+    #     for event in events:
+    #         if title:
+    #             event.title = title
+    #         if time_range:
+    #             event.start_time, event.end_time = time_range
+    #         if location:
+    #             event.location = location
+    #         if trainer:
+    #             event.trainer = trainer
+
+    def _assign_event_context(self, events, text):
+        global_location = self._extract_location(text)
+        global_trainer = self._extract_trainer(text)
+
+        for i, event in enumerate(events):
+            time_start = event.span[1]
+            time_end = events[i + 1].span[0] if i + 1 < len(events) else len(text)
+            time_range = self._extract_time_range(text[time_start:time_end])
+
+            if not time_range:
+                time_range = self._extract_time_range(text)
+
             if time_range:
                 event.start_time, event.end_time = time_range
-            if location:
-                event.location = location
-            if trainer:
-                event.trainer = trainer
+            else:
+                event.start_time = ''
+                event.end_time = ''
+
+            context_start = max(0, event.span[0] - 200)
+            context_end = min(len(text), event.span[1] + 200)
+            context = text[context_start:context_end]
+
+            event.location = self._extract_location(context) or global_location or ''
+            event.trainer = self._extract_trainer(context) or global_trainer or ''
 
     def _extract_title(self, text):
-        
+
         for line in text.splitlines():
             line = line.strip()
             match = re.match(r'^(?:betreff|titel)\s*:\s*(.+)$', line, re.IGNORECASE)
@@ -250,7 +352,7 @@ class SmartEventParser:
 
         patterns = [
             # spezifisch zuerst
-            r'(?i:ort|location)\s*(?:ist|:)?\s*(?:aktuell\s+|derzeit\s+|momentan\s+|noch\s+)?([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:[.,]|$|\s)',
+            r'(?i:ort|location)\s*(?:ist|wäre|:)?\s*(?:aktuell\s+|derzeit\s+|momentan\s+|noch\s+)?([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:[.,]|$|\s)',
 
             r'(?i:findet\s+in)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|geplant|sein)|[.,]|$)',
 
@@ -270,16 +372,16 @@ class SmartEventParser:
     def _extract_trainer(self, text):
         text = self._normalize(text)
         patterns = [
-            r'(?:trainer(?:in)?|referent(?:in)?)\s*(?:ist|wird|:)\s*'
-            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'(?i:trainer(?:in)?|referent(?:in)?)\s*(?:ist|wird|:)\s*'
+            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
             r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
 
-            r'als\s+(?:trainer(?:in)?|referent(?:in)?)\s+ist\s+'
-            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'(?i:als\s+(?:trainer(?:in)?|referent(?:in)?)\s+ist)\s+'
+            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
             r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
 
-            r'(?:von|leiter(?:in)?)\s*(?:ist|:)?\s*'
-            r'((?:dr\.|prof\.|frau|herr|fräulein)\s*)?'
+            r'(?i:von|leiter(?:in)?)\s*(?:ist|:)?\s*'
+            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
             r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)'
             r'(?:\s+geleitet)'
         ]
