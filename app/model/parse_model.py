@@ -1,5 +1,6 @@
 from datetime import datetime
 from dataclasses import dataclass, field
+from typing import Optional, Tuple
 
 @dataclass
 class ParsedEvent:
@@ -11,6 +12,7 @@ class ParsedEvent:
     end_time: str = ""
     location: str = ""
     trainer: str = ""
+    span: Optional[Tuple[int, int]] = None
 
     def to_dict(self) -> dict:
         return{

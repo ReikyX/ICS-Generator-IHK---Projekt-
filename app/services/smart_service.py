@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.model.parse_model import ParsedEvent
 
 
@@ -20,18 +20,21 @@ class SmartEventParser:
         'november': 11, 'nov': 11,
         'dezember': 12, 'dez': 12,
     }
+    WEEKDAYS_DE = {
+        'montag': 0, 'mo': 0,
+        'dienstag': 1, 'di': 1,
+        'mittwoch': 2, 'mi': 2,
+        'donnerstag': 3, 'do': 3,
+        'freitag': 4, 'fr': 4,
+        'samstag': 5, 'sa': 5,
+        'sonntag': 6, 'so': 6,
+    }
 
     _STOP_WORDS = r'trainer(?:in)|referent(?:in)?|ort|veranstaltungsort'
 
     def __init__(self) -> None:
         self._current_year = datetime.now().year
         self._month_re = '|'.join(self.MONTHS_DE.keys())
-
-        self.start_time = None
-        self.end_time = None
-        self.location = ''
-        self.trainer = ''
-        self.span = None
 
     def _normalize(self, text):
         lines = text.splitlines()
@@ -41,15 +44,39 @@ class SmartEventParser:
         h = int(h)
         m = int(m) if m else 0
         return f"{h:02d}:{m:02d}"
+    
+    def _resolve_relative_weekday(self, weekday_name:str, modifier:str = '') -> datetime | None:
+        weekday_name = weekday_name.lower().strip()
+        if weekday_name not in self.WEEKDAYS_DE:
+            return None
+        
+        target = self.WEEKDAYS_DE[weekday_name]
+        today = datetime.now()
+        days_ahead = target - today.weekday()
+
+        next_modifier = {'kommenden', 'kommende', 'nächsten', 'nächste', 'nächster'}
+        this_modifier = {'diesen', 'diesem', 'dieser', 'heutigen', 'heute'}
+
+        if modifier.lower() in next_modifier:
+            if days_ahead <= 0:
+                days_ahead += 7
+        elif modifier.lower() in this_modifier:
+            if days_ahead < 0:
+                days_ahead += 7
+        else:
+            if days_ahead <= 0:
+                days_ahead += 7
+        return today + timedelta(days=days_ahead)
 
     def _deduplicate_events(self, events):
         unique = []
+        seen = set()
         for e in events:
-            if not any(
-                e.start_date == u.start_date and e.end_date == u.end_date
-                for u in unique
-            ):
-                unique.append(e)
+                key = (e.start_date, e.end_date)
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(e)
+
         return unique
 
     def parse_smart_text(self, text) -> list[ParsedEvent]:
@@ -64,16 +91,19 @@ class SmartEventParser:
         if not events:
             events.extend(self._extract_multi_dates(normalized))
 
-        # 3. Search by single date
+        # 3. Search by relative weekday
+        if not events:
+            events.extend(self._extract_relative_weekday(normalized))
+
+        # 4. Search by single date
         if not events:
             events.extend(self._extract_single_date(normalized))
 
-        # 4. Extract common information
-        #self._extract_common_info(events, text)
+        # 5. Extract common information
         title = self._extract_title(text)
         for event in events:
             event.title = title
-        events.sort(key=lambda e: e.span[0])
+        events.sort(key=lambda e: e.span[0] if e.span else 0)
         self._assign_event_context(events, normalized)
 
         # 4. Apply common information to all events
@@ -230,14 +260,14 @@ class SmartEventParser:
 
     def _extract_single_date(self, text) -> list[ParsedEvent]:
         pattern = (
-            r'(?:am\s+)?(\d{1,2})\.?\s*'
+            r'\b(?:am\s+)?(\d{1,2})\.?\s*'
             r'(' + self._month_re + r')'
-            r'(?:\s+(\d{4}))?'
+            r'(?:\s+(\d{4}))?\b'
         )
         events = []
 
         for match in re.finditer(pattern, text, re.IGNORECASE):
-            if any(e.span[0] <= match.start() <= e.span[1] for e in events):
+            if any(not(match.end() <= e.span[0] or match.start() >= e.span[1]) for e in events):
                 continue
             day, month_str, year_str = match.groups()
             date = self._make_date(day, month_str, year_str)
@@ -284,21 +314,28 @@ class SmartEventParser:
 
         return None
 
-    # def _extract_common_info(self, events: list[ParsedEvent], text):
-    #     title = self._extract_title(text)
-    #     time_range = self._extract_time_range(text)
-    #     location = self._extract_location(text)
-    #     trainer = self._extract_trainer(text)
+    def _extract_relative_weekday(self, text) -> list[ParsedEvent]:
+        weekday_re = '|'.join(self.WEEKDAYS_DE.keys())
+        pattern= (
+            r'(?:am\s+)?'
+            r'(kommende(?:n)?|nächste(?:n)?|diese(?:n|m)?|heutige(?:n)?)?\s*'
+            r'\b(' + weekday_re + r')\b'
+        )
+        events = []
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            modifier = (match.group(1) or '').strip()
+            weekday_str = match.group(2).strip()
+            date = self._resolve_relative_weekday(weekday_str, modifier)
 
-    #     for event in events:
-    #         if title:
-    #             event.title = title
-    #         if time_range:
-    #             event.start_time, event.end_time = time_range
-    #         if location:
-    #             event.location = location
-    #         if trainer:
-    #             event.trainer = trainer
+            if date:
+                event = ParsedEvent(
+                    start_date=date,
+                    end_date=date,
+                    raw=match.group(0)
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
+        return events
 
     def _assign_event_context(self, events, text):
         global_location = self._extract_location(text)
