@@ -21,13 +21,13 @@ class SmartEventParser:
         'dezember': 12, 'dez': 12,
     }
     WEEKDAYS_DE = {
-        'montag': 0, 'mo': 0,
-        'dienstag': 1, 'di': 1,
-        'mittwoch': 2, 'mi': 2,
-        'donnerstag': 3, 'do': 3,
-        'freitag': 4, 'fr': 4,
-        'samstag': 5, 'sa': 5,
-        'sonntag': 6, 'so': 6,
+        'montag': 0,
+        'dienstag': 1,
+        'mittwoch': 2,
+        'donnerstag': 3,
+        'freitag': 4,
+        'samstag': 5,
+        'sonntag': 6,
     }
 
     _STOP_WORDS = r'trainer(?:in)|referent(?:in)?|ort|veranstaltungsort'
@@ -66,7 +66,7 @@ class SmartEventParser:
         else:
             if days_ahead <= 0:
                 days_ahead += 7
-        return today + timedelta(days=days_ahead)
+        return (today + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     def _deduplicate_events(self, events):
         unique = []
@@ -312,6 +312,12 @@ class SmartEventParser:
             end_time = self._normalize_time(end_h, end_m)
             return start_time, end_time
 
+        pattern_single = r'(?:um|gegen)\s+(\d{1,2})(?::(\d{2}))?\s*(?:uhr)?'
+        match = re.search(pattern_single, text, re.IGNORECASE)
+        if match:
+            start_h, start_m = match.groups()
+            return self._normalize_time(start_h, start_m), ''
+
         return None
 
     def _extract_relative_weekday(self, text) -> list[ParsedEvent]:
@@ -393,7 +399,7 @@ class SmartEventParser:
 
             r'(?i:findet\s+in)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|geplant|sein)|[.,]|$)',
 
-            r'(?i:\bin)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|stattfinden|geplant|sein|wird)|[.,]|$)',
+            r'(?i:\bin\s+(?:der\s+|dem|\s+|die\s+|das\s+)?)([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|stattfinden|geplant|sein|wird)|[.,]|$)',
         ]
         for pat in patterns:
             match = re.search(pat, text)
@@ -408,37 +414,54 @@ class SmartEventParser:
 
     def _extract_trainer(self, text):
         text = self._normalize(text)
+
         patterns = [
-            r'(?i:trainer(?:in)?|referent(?:in)?)\s*(?:ist|wird|:)\s*'
-            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
-            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
+            r'(?i)(?P<keyword>trainer(?:in)?|referent(?:in)?)\s*(?:ist|wird|:)\s*'
+            r'(?:(?P<title>dr\.|doktor|prof\.|professor|frau|herr|fräulein)\s+)?'
+            r'(?P<name>[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
 
-            r'(?i:als\s+(?:trainer(?:in)?|referent(?:in)?)\s+ist)\s+'
-            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
-            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
+            r'(?i)(?P<keyword>als\s+(?:trainer(?:in)?|referent(?:in)?))\s+ist\s*'
+            r'(?:(?P<title>dr\.|doktor|prof\.|professor|frau|herr|fräulein)\s+)?'
+            r'(?P<name>[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)',
 
-            r'(?i:von|leiter(?:in)?)\s*(?:ist|:)?\s*'
-            r'((?i:dr\.|prof\.|frau|herr|fräulein)\s*)?'
-            r'([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)'
-            r'(?:\s+geleitet)'
+            r'(?i)(?P<keyword>von|leiter(?:in)?)\s*(?:ist|:)?\s*'
+            r'(?:(?P<title>dr\.|doktor|prof\.|professor|frau|herr|fräulein)\s+)?'
+            r'(?P<name>[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)'
         ]
+
         for pat in patterns:
             match = re.search(pat, text, re.IGNORECASE)
-            if match:
-                title_prefix = (match.group(1) or '').strip()
-                name_part = (match.group(2) or '').strip()
+            if not match:
+                continue
 
-                name_part = re.split(r'\s+(?:vorgesehen|geplant|wird|die|der|das|ist|sein)\b', name_part, flags=re.IGNORECASE)[0].strip()
-                allowed_titles = {"dr.", "prof.", "herr", "frau"}
-                title_clean = title_prefix.lower().strip()
+            title = (match.group("title") or "").strip().lower()
+            name = (match.group("name") or "").strip()
 
-                if title_clean in allowed_titles:
-                    full_name = f"{title_clean.title()} {name_part}".strip()
-                else:
-                    full_name = name_part
+            name = re.sub(
+                r'^(wie\s+\w+\s+|noch\s+|auch\s+|bitte\s+|bereits\s+)',
+                '',
+                name,
+                flags=re.IGNORECASE
+            ).strip()
 
-                if full_name:
-                    return full_name
+            name = re.sub(r'\bgeleitet\b', '', name, flags=re.IGNORECASE).strip()
+
+            name = re.split(
+                r'\s+(?:vorgesehen|geplant|wird|die|der|das|ist|sein)\b',
+                name,
+                flags=re.IGNORECASE
+            )[0].strip()
+
+            if len(name.split()) < 1:
+                continue
+
+            allowed_titles = {"dr.", "prof.", "herr", "frau"}
+
+            if title in allowed_titles:
+                return f"{title.title()} {name}".strip()
+
+            return name
+
         return ''
 
     def _make_date(self, day: str, month_str: str, year_str: str | None) -> datetime | None:

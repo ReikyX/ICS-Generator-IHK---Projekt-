@@ -108,6 +108,32 @@ button[type="submit"]:hover {
     box-shadow: var(--shadow);
 }
 
+button[type="button"]{
+    width: 25%;
+    padding: 14px;
+    margin-top: 30px;
+    background: linear-gradient(135deg, #636366 0%, #48484a 100%);
+    color: var(--bg-primary);
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+button[type="button"]:hover {
+    background: linear-gradient(135deg, #48484a 0%, #636366 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
 .event-card{
     display: flex;
     flex-direction: column;
