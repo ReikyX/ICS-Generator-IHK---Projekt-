@@ -106,9 +106,6 @@ class SmartEventParser:
         events.sort(key=lambda e: e.span[0] if e.span else 0)
         self._assign_event_context(events, normalized)
 
-        # 4. Apply common information to all events
-
-
         events = self._deduplicate_events(events)
         return events
 
@@ -399,12 +396,18 @@ class SmartEventParser:
 
             r'(?i:findet\s+in)\s+([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|geplant|sein)|[.,]|$)',
 
-            r'(?i:\bin\s+(?:der\s+|dem|\s+|die\s+|das\s+)?)([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|stattfinden|geplant|sein|wird)|[.,]|$)',
+            r'(?i:\b(?:in\s+(?:der\s+|dem|\s+|die\s+|das\s+)?|im\s+|ins\s+))([A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)*)(?:\s+(?:statt|stattfinden|geplant|sein|wird)|[.,]|$)',
         ]
         for pat in patterns:
             match = re.search(pat, text)
             if match:
                 location = match.group(1).strip()
+                words = location.split()
+                if location.lower().split()[0] in self.MONTHS_DE:
+                    continue
+
+                if len(words) == 2 and words[1].lower() in {"hallo", "hi", "hey", "guten morgen", "guten tag", "guten abend", "viele grüße", "vg", "lg", "mit freundlichen grüßen", "beste grüße"}:
+                    continue
 
                 location = re.sub(r'\b(statt|stattfinden|geplant|sein|wird)\b.*', '', location, flags=re.IGNORECASE).strip()
 
