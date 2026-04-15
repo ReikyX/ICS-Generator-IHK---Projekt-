@@ -8,6 +8,7 @@ class ParsedEvent:
     end_date: datetime
     raw: str
     title: str = ""
+    description: str = ""
     start_time: str = ""
     end_time: str = ""
     location: str = ""
@@ -17,6 +18,7 @@ class ParsedEvent:
     def to_dict(self) -> dict:
         return{
             "title": self.title,
+            "description": self.description,
             "start_date": self.start_date.strftime("%d.%m.%Y"),
             "end_date": self.end_date.strftime("%d.%m.%Y"),
             "start_time": self.start_time,

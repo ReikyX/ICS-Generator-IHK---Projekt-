@@ -69,6 +69,7 @@ document.addEventListener("DOMContentLoaded", function(){
             <p><strong>Ende Zeit:</strong> ${event.end_time || "-"}</p>
             <p><strong>Trainer:</strong> ${event.trainer || "-"}</p>
             <p><strong>Ort:</strong> ${event.location || "-"}</p>
+            <p><strong>Beschreibung:</strong> ${escapeHtml(event.description || "-")}</p>
 
             <details>
                 <summary>Originaltext</summary>

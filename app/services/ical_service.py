@@ -26,10 +26,14 @@ class ICalService:
             if e.location:
                 event.add('location', e.location)
 
-            description = e.raw or ""
+            parts = []
+            if e.description:
+                parts.append(e.description)
+            if e.raw:
+                parts.append(e.raw)
             if e.trainer:
-                description += f"\nTrainer: {e.trainer}"
-            event.add('description', description)
+                parts.append(f"\nTrainer: {e.trainer}")
+            event.add('description', "\n".join(parts))
 
             event.add('dtstamp', datetime.now(timezone.utc))
             
