@@ -74,6 +74,19 @@ main{
     background: var();
 }
 
+.title-optional{
+    margin-bottom: 30px;
+    border-radius: 5px;
+
+}
+
+#customTitle{
+    width: 50%;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
 textarea{
     width: 85%;
     padding: 30px;
@@ -85,7 +98,7 @@ textarea{
 
 label{
     display: block;
-    margin-bottom: 30px;
+    margin-bottom: 10px;
 }
 
 button[type="submit"]{
