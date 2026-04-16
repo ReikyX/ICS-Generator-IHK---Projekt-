@@ -16,13 +16,14 @@ def smart_page():
 def parse_text():
     data = request.get_json() or {}
     text = data.get('text', '').strip()
-
+    custom_title = data.get('custom_title', '').strip()
 
     if not text:
         return jsonify({"error": "Kein Text übermittelt."}), 400
 
     parser = SmartEventParser()
-    events = parser.parse_smart_text(text)
+    events = parser.parse_smart_text(text, custom_title)
+
     
     return jsonify([e.to_dict() for e in events])
 
@@ -30,12 +31,13 @@ def parse_text():
 def export_ical():
     data = request.get_json() or {}
     text = data.get('text', '').strip()
+    custom_title = data.get('custom_title', '').strip()
 
     if not text:
         return jsonify({"error": "Kein Text übermittelt."}), 400
     
     parser = SmartEventParser()
-    events = parser.parse_smart_text(text)
+    events = parser.parse_smart_text(text, custom_title)
     ical_service = ICalService()
     ical_data = ical_service.create_icalendar(events)
 

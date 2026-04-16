@@ -10,6 +10,8 @@
 <div class="content">
     <div class="info-box"><strong>Intelligentes Parsing: </strong> Der Parser versteht natürliche Sprache aus E-Mails! Einfach E-Mail oder Text mit Termininformationen einfügen.</div>
 
+    <label for="customTitle">Titel (optional, gilt für alle Termine):</label>
+    <input type="text" id="customTitle" name="customTitle" placeholder="z.B. Schulung, Meeting, etc."></input>
     <form action="/smart_parse" method="post" id="parseForm">
         <label for="text">E-Mail oder Text einfügen:</label>
         <textarea 

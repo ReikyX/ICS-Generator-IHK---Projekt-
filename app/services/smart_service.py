@@ -79,7 +79,7 @@ class SmartEventParser:
 
         return unique
 
-    def parse_smart_text(self, text) -> list[ParsedEvent]:
+    def parse_smart_text(self, text, custom_title="") -> list[ParsedEvent]:
         """Main method for parsing a natural language"""
         normalized = self._normalize(text)
         events: list[ParsedEvent] = []
@@ -103,7 +103,7 @@ class SmartEventParser:
             events.extend(self._extract_single_date(normalized))
 
         # 5. Extract common information
-        global_title = self._extract_title(text)
+        global_title = custom_title if custom_title else self._extract_title(text)
         events.sort(key=lambda e: e.span[0] if e.span else 0)
         for event in events:
             event.title = global_title
@@ -247,6 +247,23 @@ class SmartEventParser:
             except ValueError:
                 pass
 
+        pattern_short_range = (
+            r'(\d{1,2})\.\s*[-–]\s*'       # 15. -
+            r'(\d{1,2})\.(\d{1,2})\.(\d{4})'  # 17.6.2026
+        )
+        for match in re.finditer(pattern_short_range, text, re.IGNORECASE):
+            start_day, end_day, month, year = match.groups()
+            try:
+                event = ParsedEvent(
+                    start_date=datetime(int(year), int(month), int(start_day)),
+                    end_date=datetime(int(year), int(month), int(end_day)),
+                    raw=match.group(0),
+                )
+                event.span = (match.start(), match.end())
+                events.append(event)
+            except ValueError:
+                pass
+            
         return events
 
     def _extract_multi_dates(self, text) -> list[ParsedEvent]:

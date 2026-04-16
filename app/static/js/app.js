@@ -6,7 +6,8 @@ document.addEventListener("DOMContentLoaded", function(){
 
     const state = {
         lastParsedEvents: [],
-        lastRawText: ""
+        lastRawText: "",
+        lastCustomTitle: ""
     }
 
     bindEvents();
@@ -22,15 +23,18 @@ document.addEventListener("DOMContentLoaded", function(){
         e.preventDefault();
 
         const text = textArea.value.trim();
+        const customTitle = document.getElementById("customTitle").value.trim();
+        
         if(!text){
             alert("Bitte geben Sie einen Text ein.");
             return;
         }
 
         state.lastRawText = text;
+        state.lastCustomTitle = customTitle;
 
         try {
-            const events = await fetchParsedEvents(text);
+            const events = await fetchParsedEvents(text, customTitle);
             state.lastParsedEvents = events;
             downloadBtn.disabled = !events || events.length === 0;
 
@@ -88,13 +92,13 @@ document.addEventListener("DOMContentLoaded", function(){
         .replace("'", "&#039;");
     }
 
-    async function fetchParsedEvents(text){
+    async function fetchParsedEvents(text, customTitle = ""){
         const response = await fetch("/smart_parse", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text, custom_title: customTitle })
         });
         if(!response.ok){
             throw new Error("Fehler beim Abrufen der Termine.");
@@ -114,7 +118,7 @@ document.addEventListener("DOMContentLoaded", function(){
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ text: state.lastRawText })
+                body: JSON.stringify({ text: state.lastRawText, custom_title: state.lastCustomTitle })
             });
 
             if(!response.ok){
@@ -145,7 +149,9 @@ document.addEventListener("DOMContentLoaded", function(){
     function resetUI(){
         state.lastParsedEvents = [];
         state.lastRawText = "";
+        state.lastCustomTitle = "";
         document.getElementById("text").value = "";
+        document.getElementById("customTitle").value = "";
         textArea.focus();
         resultsContainer.innerHTML = "<p>Export erfolgreich. Sie können neue Termine eingeben.</p>";
         downloadBtn.disabled = true;
