@@ -3,12 +3,13 @@ from app.services.smart_service import SmartEventParser
 from app.services.ical_service import ICalService
 from flask import render_template, request, jsonify, Response
 
+
+# def index_page():
+#     return render_template('index.html')
+
+# @app.route('/smart_text')
 @app.route('/')
 @app.route('/home')
-def index_page():
-    return render_template('index.html')
-
-@app.route('/smart_text')
 def smart_page():
     return render_template('smart.html')
 

@@ -14,15 +14,24 @@ class ICalService:
             event = Event()
             event.add('summary', e.title or "Event")
 
-            start = self.combine(e.start_date, e.start_time)
-            if not e.start_time:
-                start = start.replace(hour=8, minute=0)
-            event.add('dtstart', start)
-            end = self.combine(e.end_date, e.end_time)
-            if not e.end_time:
-                end = start + timedelta(hours=1)
-            event.add('dtend', end)
-            
+            is_multi_day = e.end_date.date() != e.start_date.date()
+            has_time = bool(e.start_time)
+
+            if not has_time and is_multi_day:
+                # Ganztagesevent — DATE ohne Uhrzeit
+                event.add('dtstart', e.start_date.date())
+                # exklusiv
+                event.add('dtend', (e.end_date + timedelta(days=1)).date())
+            else:
+                start = self.combine(e.start_date, e.start_time)
+                if not has_time:
+                    start = start.replace(hour=8, minute=0)
+                end = self.combine(e.end_date, e.end_time)
+                if not e.end_time:
+                    end = start + timedelta(hours=1)
+                event.add('dtstart', start)
+                event.add('dtend', end)
+
             if e.location:
                 event.add('location', e.location)
 
@@ -32,13 +41,12 @@ class ICalService:
             if e.raw:
                 parts.append(e.raw)
             if e.trainer:
-                parts.append(f"\nTrainer: {e.trainer}")
+                parts.append(f"Trainer: {e.trainer}")
             event.add('description', "\n".join(parts))
 
             event.add('dtstamp', datetime.now(timezone.utc))
-            
             cal.add_component(event)
-        
+
         return cal.to_ical()
     
     def combine(self,dt: datetime, time_str: str) -> datetime:

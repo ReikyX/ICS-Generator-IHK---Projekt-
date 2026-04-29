@@ -8,4 +8,4 @@ class Candidate:
     span: tuple[int, int]
     source: str
     raw: str
-    confidence: int = 1
+    confidence: int

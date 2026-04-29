@@ -2,13 +2,18 @@ import unittest
 from datetime import datetime, timedelta
 from app.services.smart_service import SmartEventParser
 
-class TestNaturalInputs(unittest.TestCase):
+
+class BaseParserTest(unittest.TestCase):
+    """Gemeinsame Basis — setUp nur einmal."""
 
     def setUp(self) -> None:
         self.parser = SmartEventParser()
 
-    def test_parse_natural_input(self):
-        case_1 = """Betreff: Training am Dienstag
+
+class TestRelativeWeekdayWithContext(BaseParserTest):
+
+    def test_next_tuesday_with_time_trainer_location(self):
+        text = """Betreff: Training am Dienstag
 
 Hallo zusammen,
 kurze Info zum Termin am kommenden Dienstag: Das Training findet um 18:30 Uhr in der Sporthalle Nord statt.
@@ -17,27 +22,29 @@ Trainer ist wie besprochen Herr Krüger.
 Bitte 10 Minuten vorher da sein, damit wir pünktlich starten können.
 Viele Grüße
 Sven"""
-        events = self.parser.parse_smart_text(case_1)
+        events = self.parser.parse_smart_text(text)
+
         self.assertEqual(len(events), 1)
-        self.assertEqual(events[0].title, "Training am Dienstag")
+        event = events[0]
+
+        # Datum
         today = datetime.now()
         days_ahead = (1 - today.weekday() + 7) % 7 or 7
-        expected = (today + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
-        self.assertEqual(events[0].start_date, expected)
-        self.assertEqual(events[0].end_date, expected)
-        self.assertEqual(events[0].start_time, "18:30")
-        self.assertEqual(events[0].end_time, "")
-        self.assertEqual(events[0].trainer, "Herr Krüger")
-        self.assertEqual(events[0].location, "Sporthalle Nord")
+        expected_date = (today + timedelta(days=days_ahead)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+
+        self.assertEqual(event.title, "Training am Dienstag")
+        self.assertEqual(event.start_date, expected_date)
+        self.assertEqual(event.end_date, expected_date)
+        self.assertEqual(event.start_time, "18:30")
+        self.assertEqual(event.end_time, "")
+        self.assertEqual(event.trainer, "Herr Krüger")
+        self.assertEqual(event.location, "Sporthalle Nord")
 
 
-class TestNaturalInputsMultiple(unittest.TestCase):
+class TestSeminarSeriesWithModules(BaseParserTest):
 
-    def setUp(self) -> None:
-        self.parser = SmartEventParser()
-
-    def test_parse_multiple_events(self):
-        case_2 = """Subject: Terminvorschläge für unsere Seminarreihe
+    TEXT = """Subject: Terminvorschläge für unsere Seminarreihe
 
 Guten Tag Herr Bellmann,
 
@@ -58,23 +65,95 @@ Sandra Hoffmann
 Personalentwicklung
 Mustermann AG
 +49 89 987654-32"""
-        events = self.parser.parse_smart_text(case_2)
+
+    EXPECTED = [
+        (datetime(2026, 5, 12), "Modul 1"),
+        (datetime(2026, 5, 26), "Modul 2"),
+        (datetime(2026, 6,  9), "Modul 3"),
+        (datetime(2026, 6, 23), "Modul 4"),
+        (datetime(2026, 7,  7), "Modul 5"),
+    ]
+
+    def test_event_count(self):
+        events = self.parser.parse_smart_text(self.TEXT)
         self.assertEqual(len(events), 5)
-        expected_dates = [
-            datetime(2026, 5, 12),
-            datetime(2026, 5, 26),
-            datetime(2026, 6, 9),
-            datetime(2026, 6, 23),
-            datetime(2026, 7, 7)
-        ]
-        for i in range(5):
-            self.assertEqual(events[i].title, "Terminvorschläge für unsere Seminarreihe")
-            self.assertEqual(events[i].start_date, expected_dates[i])
-            self.assertEqual(events[i].end_date, expected_dates[i])
-            self.assertEqual(events[i].start_time, "")
-            self.assertEqual(events[i].end_time, "")
-            self.assertEqual(events[i].trainer, "")
-            self.assertEqual(events[i].location, "München")
+
+    def test_dates_and_descriptions(self):
+        events = self.parser.parse_smart_text(self.TEXT)
+        for i, (exp_date, exp_desc) in enumerate(self.EXPECTED):
+            with self.subTest(modul=exp_desc):
+                self.assertEqual(events[i].start_date, exp_date)
+                self.assertEqual(events[i].end_date, exp_date)
+                self.assertEqual(events[i].description, exp_desc)  # ← neu
+
+    def test_shared_metadata(self):
+        events = self.parser.parse_smart_text(self.TEXT)
+        for event in events:
+            with self.subTest(date=event.start_date):
+                self.assertEqual(
+                    event.title, "Terminvorschläge für unsere Seminarreihe")
+                self.assertEqual(event.start_time, "")
+                self.assertEqual(event.end_time, "")
+                self.assertEqual(event.trainer, "")
+                self.assertEqual(event.location, "München")
+
+
+class TestCrossMonthRanges(BaseParserTest):
+
+    TEXT = """Titel: Data Science Foundation (Conti)?:
+
+30.9. - 2.10.2026 (3 Tage)
+ 7. - 9.10.2025 (3 Tage)
+ 29. - 30.10.2026 (2 Tage)
+ 9. - 11.11.2026 (3 Tage)
+ 16. - 18.11.2026 (3 Tage)
+ 3. - 4.12.2026 (2 Tage)
+ 10. - 11.12.2026 (2 Tage)"""
+
+    EXPECTED = [
+        (datetime(2026,  9, 30), datetime(2026, 10,  2)),  # Cross-Month
+        (datetime(2025, 10,  7), datetime(2025, 10,  9)),  # anderes Jahr
+        (datetime(2026, 10, 29), datetime(2026, 10, 30)),
+        (datetime(2026, 11,  9), datetime(2026, 11, 11)),
+        (datetime(2026, 11, 16), datetime(2026, 11, 18)),
+        (datetime(2026, 12,  3), datetime(2026, 12,  4)),
+        (datetime(2026, 12, 10), datetime(2026, 12, 11)),
+    ]
+
+    def test_event_count(self):
+        events = self.parser.parse_smart_text(self.TEXT)
+        self.assertEqual(len(events), 7)
+
+    def test_date_ranges(self):
+        events = self.parser.parse_smart_text(self.TEXT)
+        for i, (exp_start, exp_end) in enumerate(self.EXPECTED):
+            with self.subTest(i=i, exp_start=exp_start):
+                self.assertEqual(events[i].start_date, exp_start)
+                self.assertEqual(events[i].end_date, exp_end)
+
+    def test_title_from_titel_prefix(self):
+        events = self.parser.parse_smart_text(self.TEXT)
+        for event in events:
+            self.assertEqual(event.title, "Data Science Foundation (Conti)?")
+
+    def test_custom_title_overrides(self):
+        events = self.parser.parse_smart_text(
+            self.TEXT, custom_title="Mein Titel")
+        self.assertEqual(events[0].title, "Mein Titel")
+
+    # Isolierte Pattern-Tests
+    def test_cross_month_pattern_isolated(self):
+        events = self.parser.parse_smart_text("30.9. - 2.10.2026")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].start_date, datetime(2026, 9, 30))
+        self.assertEqual(events[0].end_date,   datetime(2026, 10, 2))
+
+    def test_same_month_pattern_isolated(self):
+        events = self.parser.parse_smart_text("7. - 9.10.2025")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].start_date, datetime(2025, 10, 7))
+        self.assertEqual(events[0].end_date,   datetime(2025, 10, 9))
+
 
 if __name__ == '__main__':
     unittest.main()

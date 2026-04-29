@@ -1,17 +1,7 @@
 import re
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
 from app.model.parse_model import ParsedEvent
-
-
-@dataclass
-class Candidate:
-    start_date: datetime
-    end_date: datetime
-    span: tuple[int, int]
-    raw: str
-    source: str
-    confidence: int  # höher = bevorzugt bei Überlappung
+from app.model.candidate import Candidate
 
 
 class SmartEventParser:
@@ -177,8 +167,22 @@ class SmartEventParser:
             except ValueError:
                 pass
 
-        # --- DD. – DD. Monat [Jahr] (z. B. "15. - 17.6.2026") ---
-        pattern_short_range = r'(\d{1,2})\.\s*[-–]\s*(\d{1,2})\.(\d{1,2})\.(\d{4})'
+       # --- DD.MM. – DD.MM.YYYY (Cross-Month, z. B. "30.9. - 2.10.2026") ---
+        pattern_cross_month = r'(\d{1,2})\.(\d{1,2})\.\s*[-–]\s*(\d{1,2})\.(\d{1,2})\.(\d{4})'
+        for match in re.finditer(pattern_cross_month, text):
+            sd, sm, ed, em, year = match.groups()
+            try:
+                candidates.append(Candidate(
+                    start_date=datetime(int(year), int(sm), int(sd)),
+                    end_date=datetime(int(year), int(em), int(ed)),
+                    span=(match.start(), match.end()), raw=match.group(0),
+                    source='date_range', confidence=5,
+                ))
+            except ValueError:
+                pass
+
+        # --- DD. – DD.MM.YYYY (Same-Month, z. B. "7. - 9.10.2025") ---
+        pattern_short_range = r'(?<!\d\.)(\d{1,2})\.\s*[-–]\s*(\d{1,2})\.(\d{1,2})\.(\d{4})'
         for match in re.finditer(pattern_short_range, text):
             sd, ed, month, year = match.groups()
             try:
@@ -409,7 +413,7 @@ class SmartEventParser:
             line = line.strip()
             match = re.match(r'^(?:betreff|titel|subject)\s*:\s*(.+)$', line, re.IGNORECASE)
             if match:
-                return match.group(1).strip()
+                return match.group(1).strip().rstrip(':').strip()
 
         pattern = r'^(.*?)(?:beginnt am|vom\s+\d{1,2}|am \d{1,2})'
         match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)

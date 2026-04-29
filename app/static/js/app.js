@@ -61,20 +61,26 @@ document.addEventListener("DOMContentLoaded", function(){
         resultsContainer.appendChild(fragment);
     }
 
-    function createEventCard(event){
+    function createEventCard(event) {
         const div = document.createElement("div");
         div.classList.add("event-card");
 
+        const startParts = event.start_date.split(".");
+        const startDate = new Date(startParts[2], startParts[1] - 1, startParts[0]);
+        const isPast = startDate < new Date();
+
         div.innerHTML = `
-            <h3>${escapeHtml(event.title || "Termin")}</h3>
-            <p><strong>Start:</strong> ${(event.start_date)}</p>
-            <p><strong>Ende:</strong> ${(event.end_date)}</p>
+            <h3>
+                ${escapeHtml(event.title || "Termin")}
+                ${isPast ? '<span class="badge-past">⚠ Vergangenes Datum</span>' : ''}
+            </h3>
+            <p><strong>Start:</strong> ${event.start_date}</p>
+            <p><strong>Ende:</strong> ${event.end_date}</p>
             <p><strong>Start Zeit:</strong> ${event.start_time || "-"}</p>
             <p><strong>Ende Zeit:</strong> ${event.end_time || "-"}</p>
             <p><strong>Trainer:</strong> ${event.trainer || "-"}</p>
             <p><strong>Ort:</strong> ${event.location || "-"}</p>
             <p><strong>Beschreibung:</strong> ${escapeHtml(event.description || "-")}</p>
-
             <details>
                 <summary>Originaltext</summary>
                 <p>${escapeHtml(event.raw || "")}</p>

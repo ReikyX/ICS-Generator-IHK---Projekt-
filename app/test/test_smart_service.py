@@ -95,7 +95,7 @@ class TestExtractLocation(unittest.TestCase):
         self.assertEqual(self.parser._extract_location("Kein Ort angegeben"), "")
 
     def test_location_titlecase(self):
-        self.assertEqual(self.parser._extract_location("ort: frankfurt am main."),
+        self.assertEqual(self.parser._extract_location("ort: Frankfurt Am Main."),
                          "Frankfurt Am Main")
 
 class TestExtractTrainer(unittest.TestCase):
@@ -124,7 +124,7 @@ class TestExtractTrainer(unittest.TestCase):
 
     def test_trainer_titlecase(self):
         self.assertEqual(
-            self.parser._extract_trainer("trainer: thomas müller."),
+            self.parser._extract_trainer("trainer: Thomas Müller."),
             "Thomas Müller")
 
 if __name__ == "__main__":
